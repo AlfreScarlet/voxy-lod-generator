@@ -1,0 +1,9 @@
+pluginManagement {
+    repositories {
+        maven { url = 'https://maven.aliyun.com/repository/central' }
+        maven { url = 'https://maven.aliyun.com/repository/gradle-plugin' }
+        maven { url = 'https://1755624453.rsc.cdn77.org/releases' }
+    }
+}
+
+rootProject.name = 'voxy-lod-generator'

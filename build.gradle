@@ -1,0 +1,102 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+group = 'dev.voxylod'
+version = '1.1.0'
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
+}
+
+neoForge {
+    version = '21.1.262'
+
+    runs {
+        client {
+            client()
+            gameDirectory = project.file('run/client')
+            jvmArgument '-Xmx4G'
+            jvmArgument "-Djava.io.tmpdir=${project.file('.tools/tmp').absolutePath}"
+            def quickPlayWorld = project.findProperty('quickPlayWorld')
+            if (quickPlayWorld != null) {
+                programArgument '--quickPlaySingleplayer'
+                programArgument quickPlayWorld.toString()
+            }
+        }
+        server {
+            server()
+            gameDirectory = project.file('run/server')
+            programArgument '--nogui'
+        }
+    }
+
+    mods {
+        voxylod {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+repositories {
+    maven { url = uri('maven-repo') }
+    maven { url = 'https://maven.aliyun.com/repository/central' }
+    maven { url = 'https://1755624453.rsc.cdn77.org/releases' }
+    maven { url = 'https://api.modrinth.com/maven' }
+    maven { url = 'https://maven.fabricmc.net/' }
+}
+
+repositories.configureEach { repository ->
+    if (repository instanceof org.gradle.api.artifacts.repositories.MavenArtifactRepository) {
+        def url = repository.url.toString()
+        if (url.contains('maven.neoforged.net')) {
+            repository.url = uri('https://1755624453.rsc.cdn77.org/releases')
+        } else if (url.contains('repo.maven.apache.org') || url.contains('repo1.maven.org')) {
+            repository.url = uri('https://maven.aliyun.com/repository/central')
+        }
+    }
+}
+
+dependencies {
+    def localVoxy = file('.tools/dependencies/voxy-0.2.16-beta.jar')
+    if (localVoxy.isFile()) {
+        compileOnly files(localVoxy)
+    } else {
+        compileOnly('maven.modrinth:voxy:0.2.16-beta') {
+            transitive = false
+        }
+    }
+    def roxyStubs = file('.tools/dependencies/roxy-fabric-stubs.jar')
+    if (roxyStubs.isFile()) {
+        compileOnly files(roxyStubs)
+    } else {
+        compileOnly('net.fabricmc:fabric-loader:0.18.4') {
+            transitive = false
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    sourceCompatibility = '21'
+    targetCompatibility = '21'
+}
+
+processResources {
+    inputs.property 'mod_id', 'voxylod'
+    inputs.property 'mod_name', 'Voxy LOD Generator'
+    inputs.property 'mod_version', project.version
+    inputs.property 'mod_description', 'Bounded-memory chunk generation and direct Voxy LOD ingestion for Roxy on NeoForge.'
+
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand inputs.properties
+    }
+}
+
+jar {
+    manifest.attributes([
+        'Implementation-Title': 'Voxy LOD Generator',
+        'Implementation-Version': project.version
+    ])
+}

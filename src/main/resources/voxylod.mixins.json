@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.voxylod.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ServerChunkCacheInvoker",
+    "C2MEStorageReadProbe"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
