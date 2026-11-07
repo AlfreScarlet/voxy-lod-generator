@@ -23,6 +23,7 @@ final class GenerationTask {
     final int radiusChunks;
     final int threads;
     final int pendingChunks;
+    final int checkpointWindowLimit;
     final int saveQueueLimit;
     final int renderQueueLimit;
     final long totalChunks;
@@ -36,13 +37,17 @@ final class GenerationTask {
     long nextCheckpointIndex;
     long completedChunks;
     long failedChunks;
-    int chunkWrites;
+    C2MEQueueProbe.QueueStatus c2meQueues = C2MEQueueProbe.QueueStatus.EMPTY;
+    String throttleReason;
     long lastCheckpointSave;
     long lastSavedCheckpointIndex = -1;
     long lastProgressLog;
     boolean distanceManagerDirty;
     boolean paused;
     boolean stopping;
+    boolean dispatching;
+    boolean dispatchQueued;
+    boolean dispatchRequested;
 
     GenerationTask(ServerLevel level, VoxyBridge.EngineHandle engine, GeneratorSettings settings,
                    CircularCursor cursor) {
@@ -54,6 +59,7 @@ final class GenerationTask {
         this.radiusChunks = settings.radiusChunks;
         this.threads = settings.threads;
         this.pendingChunks = settings.pendingChunks;
+        this.checkpointWindowLimit = Math.max(64, this.pendingChunks * 4);
         this.saveQueueLimit = settings.saveQueueLimit;
         this.renderQueueLimit = settings.renderQueueLimit;
         this.totalChunks = CircularCursor.countChunks(settings.radiusChunks);
@@ -86,6 +92,19 @@ final class GenerationTask {
 
     boolean fullyDispatched() {
         return this.dispatchCursor.isDone();
+    }
+
+    long completionWindow() {
+        return this.dispatchCursor.index() - this.checkpointCursor.index();
+    }
+
+    int dispatchBudget() {
+        long checkpointBudget = this.checkpointWindowLimit - completionWindow();
+        return (int) Math.min(this.pendingChunks - this.inFlight.size(), checkpointBudget);
+    }
+
+    long settledChunks() {
+        return this.completedChunks + this.failedChunks;
     }
 
     long elapsedSeconds() {

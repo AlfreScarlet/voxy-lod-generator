@@ -2,6 +2,7 @@ package dev.voxylod.command;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import dev.voxylod.GeneratorSettings;
@@ -32,6 +33,10 @@ public final class VoxyLodCommand {
                                                 .then(Commands.argument("threads", IntegerArgumentType.integer(1, 64))
                                                         .executes(context -> startWithArguments(context, false, true)))))))
                 .then(Commands.literal("restart").executes(context -> start(context, true)))
+                .then(Commands.literal("startFrom")
+                        .then(Commands.argument("index", LongArgumentType.longArg(0))
+                                .executes(context -> runGuarded(context, () -> this.manager.startFrom(
+                                        level(context), LongArgumentType.getLong(context, "index"))))))
                 .then(Commands.literal("stop").executes(context -> success(context, this.manager.stop())))
                 .then(Commands.literal("pause").executes(context -> success(context, this.manager.pause())))
                 .then(Commands.literal("resume").executes(context -> success(context, this.manager.resume())))

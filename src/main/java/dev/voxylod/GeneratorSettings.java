@@ -84,7 +84,7 @@ public final class GeneratorSettings {
     }
 
     public static int defaultPending(int threads) {
-        return Math.min(64, Math.max(8, threads * 2));
+        return Math.min(64, Math.max(16, threads * 4));
     }
 
     private static int readInt(Properties properties, String key, int fallback, int minimum, int maximum) {

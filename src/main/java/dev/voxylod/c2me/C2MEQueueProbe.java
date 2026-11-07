@@ -12,7 +12,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class C2MEQueueProbe {
-    public static final int STORAGE_QUEUE_LIMIT = 64;
+    public static final int READ_QUEUE_LIMIT = 64;
+    public static final int STORAGE_TASK_LIMIT = 64;
+    public static final int WRITE_CACHE_LIMIT = 64;
+    public static final int WRITE_FUTURE_LIMIT = 128;
+    public static final int UNLOAD_QUEUE_LIMIT = 64;
 
     private static final Field PENDING_UNLOADS;
     private static final Field UNLOAD_QUEUE;
@@ -109,19 +113,43 @@ public final class C2MEQueueProbe {
         return this.backend != null;
     }
 
-    public int pendingWrites() {
-        int pending = this.pendingUnloads.size() + this.unloadQueue.size();
+    public QueueStatus queueStatus() {
+        int unloads = this.pendingUnloads.size() + this.unloadQueue.size();
         if (this.backend == null) {
-            return pending;
+            return new QueueStatus(0, 0, 0, 0, unloads);
         }
         try {
             int tasks = ((AtomicInteger) TASKS.get(this.backend)).get();
             int cached = ((Map<?, ?>) CACHE.get(this.backend)).size();
             int writes = ((Set<?>) WRITES.get(this.backend)).size();
             int reads = (int) PENDING_READS.invoke(this.backend);
-            return pending + tasks + cached + writes + reads;
+            return new QueueStatus(reads, tasks, cached, writes, unloads);
         } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("无法读取 C2ME 存储队列", exception);
+        }
+    }
+
+    public record QueueStatus(int pendingReads, int storageTasks, int cachedWrites, int writeFutures,
+                              int pendingUnloads) {
+        public static final QueueStatus EMPTY = new QueueStatus(0, 0, 0, 0, 0);
+
+        public String saturatedReason() {
+            if (this.pendingReads >= READ_QUEUE_LIMIT) {
+                return "C2ME读取队列";
+            }
+            if (this.storageTasks >= STORAGE_TASK_LIMIT) {
+                return "C2ME存储命令队列";
+            }
+            if (this.cachedWrites >= WRITE_CACHE_LIMIT) {
+                return "C2ME待写数据队列";
+            }
+            if (this.writeFutures >= WRITE_FUTURE_LIMIT) {
+                return "C2ME写盘任务队列";
+            }
+            if (this.pendingUnloads >= UNLOAD_QUEUE_LIMIT) {
+                return "区块卸载队列";
+            }
+            return null;
         }
     }
 }

@@ -18,9 +18,13 @@ final class CheckpointStore {
     }
 
     static CircularCursor load(ServerLevel level, GeneratorSettings settings) {
-        Path file = file(level);
+        Path file = file(level, settings.originX, settings.originZ, settings.radiusChunks);
         if (!Files.isRegularFile(file)) {
-            return null;
+            Path legacyFile = legacyFile(level);
+            if (!Files.isRegularFile(legacyFile)) {
+                return null;
+            }
+            file = legacyFile;
         }
         Properties properties = new Properties();
         try (InputStream input = Files.newInputStream(file)) {
@@ -60,7 +64,7 @@ final class CheckpointStore {
         properties.setProperty("offset", Integer.toString(cursor.offset()));
         properties.setProperty("index", Long.toString(cursor.index()));
         properties.setProperty("returnedCenter", Boolean.toString(cursor.returnedCenter()));
-        Path file = file(task.level);
+        Path file = file(task.level, task.originBlockX, task.originBlockZ, task.radiusChunks);
         try {
             Files.createDirectories(file.getParent());
             Path temporary = file.resolveSibling(file.getFileName() + ".tmp");
@@ -77,10 +81,21 @@ final class CheckpointStore {
         }
     }
 
-    private static Path file(ServerLevel level) {
-        String dimension = level.dimension().location().toString().replace(':', '_').replace('/', '_');
-        return level.getServer().getWorldPath(LevelResource.ROOT)
-                .resolve("voxylod")
-                .resolve(dimension + ".properties");
+    private static Path file(ServerLevel level, int originX, int originZ, int radiusChunks) {
+        return checkpointRoot(level)
+                .resolve(dimension(level))
+                .resolve("x" + originX + "_z" + originZ + "_r" + radiusChunks + ".properties");
+    }
+
+    private static Path legacyFile(ServerLevel level) {
+        return checkpointRoot(level).resolve(dimension(level) + ".properties");
+    }
+
+    private static Path checkpointRoot(ServerLevel level) {
+        return level.getServer().getWorldPath(LevelResource.ROOT).resolve("voxylod");
+    }
+
+    private static String dimension(ServerLevel level) {
+        return level.dimension().location().toString().replace(':', '_').replace('/', '_');
     }
 }

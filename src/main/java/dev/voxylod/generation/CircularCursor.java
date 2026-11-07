@@ -126,6 +126,100 @@ public final class CircularCursor {
         return count;
     }
 
+    public static CircularCursor at(int centerX, int centerZ, int radius, long targetIndex) {
+        if (radius < 0) {
+            throw new IllegalArgumentException("Radius must not be negative");
+        }
+        long total = countChunks(radius);
+        if (targetIndex < 0 || targetIndex > total) {
+            throw new IllegalArgumentException("Start index must be between 0 and " + total + ", got " + targetIndex);
+        }
+        if (targetIndex == 0) {
+            return new CircularCursor(centerX, centerZ, radius);
+        }
+        if (targetIndex == total) {
+            return new CircularCursor(centerX, centerZ, radius, radius + 1, 0, 0, total, true);
+        }
+
+        long[] ringEnds = new long[radius + 1];
+        ringEnds[0] = 1;
+        for (int ring = 1; ring <= radius; ring++) {
+            ringEnds[ring] = ringEnds[ring - 1] + countRing(radius, ring);
+        }
+        int low = 1;
+        int high = radius;
+        while (low < high) {
+            int middle = (low + high) >>> 1;
+            if (ringEnds[middle] <= targetIndex) {
+                low = middle + 1;
+            } else {
+                high = middle;
+            }
+        }
+        int ring = low;
+        int remaining = (int) (targetIndex - ringEnds[ring - 1]);
+        for (int side = 0; side < 4; side++) {
+            int count = countSide(radius, ring, side);
+            if (remaining < count) {
+                return new CircularCursor(centerX, centerZ, radius, ring, side,
+                        sideOffset(radius, ring, side, remaining), targetIndex, true);
+            }
+            remaining -= count;
+        }
+        throw new IllegalStateException("Unable to locate circular cursor index " + targetIndex);
+    }
+
+    private static long countRing(int radius, int ring) {
+        long count = 0;
+        for (int side = 0; side < 4; side++) {
+            count += countSide(radius, ring, side);
+        }
+        return count;
+    }
+
+    private static int countSide(int radius, int ring, int side) {
+        int reach = ringReach(radius, ring);
+        return switch (side) {
+            case 0 -> reach * 2 + 1;
+            case 1 -> {
+                int lower = Math.max(-ring + 1, -reach);
+                yield Math.max(0, reach - lower + 1);
+            }
+            case 2 -> {
+                int upper = Math.min(ring - 1, reach);
+                yield Math.max(0, upper + reach + 1);
+            }
+            case 3 -> {
+                int lower = Math.max(-ring + 1, -reach);
+                int upper = Math.min(ring - 1, reach);
+                yield Math.max(0, upper - lower + 1);
+            }
+            default -> throw new IllegalArgumentException("Invalid ring side");
+        };
+    }
+
+    private static int sideOffset(int radius, int ring, int side, int index) {
+        int reach = ringReach(radius, ring);
+        return switch (side) {
+            case 0 -> ring - reach + index;
+            case 1 -> Math.max(-ring + 1, -reach) + ring - 1 + index;
+            case 2, 3 -> ring - 1 - Math.min(ring - 1, reach) + index;
+            default -> throw new IllegalArgumentException("Invalid ring side");
+        };
+    }
+
+    private static int ringReach(int radius, int ring) {
+        long remaining = (long) radius * radius - (long) ring * ring;
+        int reach = (int) Math.sqrt(remaining);
+        while ((long) (reach + 1) * (reach + 1) <= remaining) {
+            reach++;
+        }
+        while ((long) reach * reach > remaining) {
+            reach--;
+        }
+        return Math.min(ring, reach);
+    }
+
     private static int sideLength(int ring, int side) {
         if (side == 0) {
             return ring * 2 + 1;
